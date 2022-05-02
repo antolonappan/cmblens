@@ -19,8 +19,8 @@ class CMBLensed:
         self.cl_unl = camb_clfile(scalar)
         self.cl_pot = camb_clfile(with_tensor)
         self.cl_len = camb_clfile(lensed)
-        self.nside = 512
-        self.lmax = (3*self.nside) - 1
+        self.nside = 2048
+        self.lmax = 4096
         self.dlmax = 1024
         self.facres = 0
         self.verbose = verbose
@@ -72,36 +72,39 @@ class CMBLensed:
     
     @property
     def get_kappa(self):
-        return hp.map2alm(self.get_kmap,lmax=2048)
+        return hp.map2alm(self.get_kmap,lmax=1024)
     
-    @property
-    def get_phi(self):
+    
+    def get_phi(self,fid=False):
         """
 
         """
-        fname = os.path.join(self.mass_dir,'phi.fits')
+        name = 'phi_fid.fits' if fid else 'phi.fits'
+        fname = os.path.join(self.mass_dir,name)
         if os.path.isfile(fname):
             return hp.read_alm(fname)
         else:
             fac = np.arange(self.lmax + 1, dtype=float) * np.arange(1, self.lmax + 2)
-            phi = hp.almxfl(self.get_kappa,2/fac)
+            if fid:
+                phi = hp.synalm(self.cl_pot['pp'], lmax=self.lmax + self.dlmax, new=True)
+            else:
+                phi = hp.almxfl(self.get_kappa,2/fac)
             hp.write_alm(fname,phi)
             return phi
-        
-    @property    
-    def get_deflection(self):
+           
+    def get_deflection(self,fid=False):
         """
         generate deflection field
         sqrt(L(L+1)) * \phi_{LM}
         """
         der = np.sqrt(np.arange(self.lmax + 1, dtype=float) * np.arange(1, self.lmax + 2))
-        defl = hp.almxfl(self.get_phi, der)
+        defl = hp.almxfl(self.get_phi(fid), der)
         defl[0] = 0
         return defl
         
     
-    def plot_pp(self):
-        data = hp.alm2cl(self.get_phi)
+    def plot_pp(self,fid=False):
+        data = hp.alm2cl(self.get_phi(fid))
         theory = self.cl_pot['pp']
         lmax = min(len(data),len(theory))
         l = np.arange(lmax)
@@ -122,8 +125,9 @@ class CMBLensed:
         alms = hp.synalm(Cls,lmax=self.lmax + self.dlmax,new=True)
         return alms   
 
-    def get_lensed(self,idx):
-        fname = os.path.join(self.cmb_dir,f"sims_{idx:02d}.fits")
+    def get_lensed(self,idx,fid=False):
+        name = f"sims_{idx:02d}.fits" if not fid else f"sims_fid_{idx:02d}.fits"
+        fname = os.path.join(self.cmb_dir,name)
         if os.path.isfile(fname):
             self.vprint(f"CMB fields from cache: {idx}")
             maps = hp.read_map(fname,(0,1,2),dtype=np.float64)
@@ -133,7 +137,7 @@ class CMBLensed:
                 print("HASH CHECK: FAILED")
             return maps
         else:
-            dlm = self.get_deflection
+            dlm = self.get_deflection(fid)
             Red, Imd = hp.alm2map_spin([dlm, np.zeros_like(dlm)], self.nside, 1, hp.Alm.getlmax(dlm.size))
             del dlm
             tlm,elm,blm = self.get_unlensed_alm(idx)
@@ -152,21 +156,25 @@ class CMBLensed:
             self.meta.insert_hash(idx,hash_maps(maps))
             return maps
     
-    def plot_lensed(self,idx):
+    def plot_lensed(self,idx,fid=False):
         w = lambda ell :ell * (ell + 1) / (2. * np.pi)
-        maps = self.get_lensed(idx)
+        maps = self.get_lensed(idx,fid)
         alms = hp.map2alm(maps)
         clss = hp.alm2cl(alms)
-        l = np.arange(len(clss[0]))
+        lmax_d = len(clss[0])
+        lmax_t = len(self.cl_len['tt'])
+        l_d = np.arange(lmax_d)
+        l_t = np.arange(lmax_t)
         plt.figure(figsize=(8,8))
-        plt.loglog(clss[0]*w(l))
-        plt.loglog(self.cl_len['tt'][:len(l)]*w(l))
-        plt.loglog(clss[1]*w(l))
-        plt.loglog(self.cl_len['ee'][:len(l)]*w(l))
-        plt.loglog(clss[2]*w(l))
-        plt.loglog(self.cl_len['bb'][:len(l)]*w(l))
-        plt.loglog(clss[3]*w(l))
-        plt.loglog(self.cl_len['te'][:len(l)]*w(l))
+        plt.loglog(clss[0]*w(l_d))
+        plt.loglog(self.cl_len['tt']*w(l_t))
+        plt.loglog(clss[1]*w(l_d))
+        plt.loglog(self.cl_len['ee']*w(l_t))
+        plt.loglog(clss[2]*w(l_d))
+        plt.loglog(self.cl_len['bb']*w(l_t))
+        plt.loglog(clss[3]*w(l_d))
+        plt.loglog(self.cl_len['te']*w(l_t))
+        plt.xlim(2,2000)
         
     def run_job(self):
         jobs = np.arange(self.nsim)
