@@ -72,7 +72,7 @@ class CMBLensed:
     
     @property
     def get_kappa(self):
-        return hp.map2alm(self.get_kmap,lmax=1024)
+        return hp.map2alm(self.get_kmap,lmax=2048)
     
     
     def get_phi(self,fid=False):
@@ -153,6 +153,7 @@ class CMBLensed:
             maps = np.array([T,Q,U])
             hp.write_map(fname,maps,dtype=np.float64)
             self.vprint(f"CMB field cached: {idx}")
+            mpi.barrier()
             self.meta.insert_hash_mpi(idx,hash_maps(maps))
             return maps
     
@@ -175,6 +176,8 @@ class CMBLensed:
         plt.loglog(clss[3]*w(l_d))
         plt.loglog(self.cl_len['te']*w(l_t))
         plt.xlim(2,2000)
+        plt.xlabel('$\ell$', fontsize=20)
+        plt.ylabel('$C_\ell$', fontsize=20)
         
     def run_job(self):
         jobs = np.arange(self.nsim)

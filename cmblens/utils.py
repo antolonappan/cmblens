@@ -43,7 +43,6 @@ class MetaSIM:
             req = mpi.com.isend(hash_value,dest=0,tag=mpi.rank)
             req.wait()
         else:
-            print(idx,hash_value)
             for i in range(mpi.size):
                 if i == 0:
                     self.insert_hash(i,hash_value)
