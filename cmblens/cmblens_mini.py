@@ -1,7 +1,10 @@
 import numpy as np
+import healpy as hp
+import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String,select
 import hashlib
 import itertools
+import os
 
 def hash_maps(maps):
     return hashlib.sha224(maps).hexdigest()
@@ -50,8 +53,8 @@ class CMBLensed:
         self.cl_unl = camb_clfile(scalar)
         self.cl_pot = camb_clfile(with_tensor)
         self.cl_len = camb_clfile(lensed)
-        self.nside = 512
-        self.lmax = (3*self.nside) - 1
+        self.nside = 2048
+        self.lmax = 4096
         self.verbose = verbose
         self.nsim = nsim
 
@@ -130,4 +133,34 @@ class CMBLensed:
         plt.xlabel('$\ell$', fontsize=20)
         plt.ylabel('$C_\ell$', fontsize=20)
         
+def camb_clfile(fname, lmax=None):
+    """CAMB spectra (lenspotentialCls, lensedCls, tensCls or ScalCls types) returned as a dict of numpy arrays.
+    Args:
+        fname (str): path to CAMB output file
+        lmax (int, optional): outputs cls truncated at this multipole.
+    """
+    with open(fname) as f:
+        firstline = next(f)
+    keys = [i.lower() for i in firstline.split(' ') if i.isalpha()][1:]
+    cols = np.loadtxt(fname).transpose()
 
+    ell = np.int_(cols[0])
+    if lmax is None: lmax = ell[-1]
+    assert ell[-1] >= lmax, (ell[-1], lmax)
+
+    cls = {k : np.zeros(lmax + 1, dtype=float) for k in keys}
+
+    idc = np.where(ell <= lmax) if lmax is not None else np.arange(len(ell), dtype=int)
+
+    w = lambda ell :ell * (ell + 1) / (2. * np.pi)
+    wpp = lambda ell : ell ** 2 * (ell + 1) ** 2 / (2. * np.pi)
+    wptpe = lambda ell :np.sqrt(ell.astype(float) ** 3 * (ell + 1.) ** 3) / (2. * np.pi) 
+    for i, k in enumerate(keys):
+        if k == 'pp':
+            we = wpp(ell)
+        elif 'p' in k and ('e' in k or 't' in k):
+            we = wptpe(ell)
+        else:
+            we = w(ell)
+        cls[k][ell[idc]] = cols[i + 1][idc] / we[idc]
+    return cls
