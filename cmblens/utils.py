@@ -2,6 +2,8 @@ import numpy as np
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String,select
 import hashlib
 import itertools
+import mpi
+import os
 
 def hash_maps(maps):
     return hashlib.sha224(maps).hexdigest()
@@ -11,6 +13,10 @@ def hash_maps(maps):
 class MetaSIM:
     
     def __init__(self,fname,verbose=False):
+        if (mpi.rank==0) and (not os.path.isfile(fname)):
+            engine = create_engine(f'sqlite:///{fname}',echo=True)
+        mpi.barrier()
+        
         self.engine = create_engine(f'sqlite:///{fname}', echo=verbose)
         meta = MetaData()
         self.simulation = Table(
@@ -31,6 +37,22 @@ class MetaSIM:
         for i,seed in enumerate(seeds):
             self.insert_seed(i,seed)
     
+    
+    def insert_hash_mpi(self,idx,hash_value):
+        if mpi.rank != 0:
+            req = mpi.com.isend(hash_value,dest=0,tag=mpi.rank)
+            req.wait()
+        else:
+            print(idx,hash_value)
+            for i in range(mpi.size):
+                if i == 0:
+                    self.insert_hash(i,hash_value)
+                else:
+                    req = mpi.com.irecv(source=i,tag=i)
+                    data = req.wait()
+                    self.insert_hash(i,data)
+        mpi.barrier()
+
     
     def insert_hash(self,idx,hash_value):
         conn = self.engine.connect()

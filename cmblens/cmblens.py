@@ -153,7 +153,7 @@ class CMBLensed:
             maps = np.array([T,Q,U])
             hp.write_map(fname,maps,dtype=np.float64)
             self.vprint(f"CMB field cached: {idx}")
-            self.meta.insert_hash(idx,hash_maps(maps))
+            self.meta.insert_hash_mpi(idx,hash_maps(maps))
             return maps
     
     def plot_lensed(self,idx,fid=False):
