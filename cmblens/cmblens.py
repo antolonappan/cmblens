@@ -123,7 +123,7 @@ class CMBLensed:
         Cls = [self.cl_unl['tt'],self.cl_unl['ee'],self.cl_unl['tt']*0,self.cl_unl['te']]
         np.random.seed(self.seeds[idx])
         alms = hp.synalm(Cls,lmax=self.lmax + self.dlmax,new=True)
-        return alms   
+        return alms
 
     def get_lensed(self,idx,fid=False):
         name = f"sims_{idx:02d}.fits" if not fid else f"sims_fid_{idx:02d}.fits"
@@ -184,6 +184,14 @@ class CMBLensed:
         for i in jobs[mpi.rank::mpi.size]:
             print(f"Lensing map-{i} in processor-{mpi.rank}")
             NULL = self.get_lensed(i)
+    def save_unlensed(self):
+        jobs = np.arange(self.nsim)
+        for i in jobs[mpi.rank::mpi.size]:
+            print(f"Saving unlensed alms-{i} in processor-{mpi.rank}")
+            name = f"sims_unl_{idx:02d}.fits" if not fid else f"sims_unl_fid_{idx:02d}.fits"
+            fname = os.path.join(self.cmb_dir,name)
+            hp.write_alm(fname,self.get_unlensed_alm(i))
+            
             
 
 if __name__ == '__main__':
@@ -197,4 +205,5 @@ if __name__ == '__main__':
     
     c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file)
     
-    c.run_job()
+    #c.run_job()
+    c.save_unlensed()
