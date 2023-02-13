@@ -1,0 +1,6 @@
+numpy
+healpy
+matplotlib
+lenspyx
+sqlalchemy
+mpi4py
