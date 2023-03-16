@@ -1,1 +1,1 @@
-### CMB Lensing patch for LiteBIRD simulation
+### CMB Lensing for LiteBIRD simulation
