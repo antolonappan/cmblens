@@ -101,7 +101,7 @@ class CMBLensed:
         plt.legend(fontsize=20)
 
     def get_lensed(self,idx):
-        fname = os.path.join(self.cmb_dir,f"sims_{idx:02d}.fits")
+        fname = os.path.join(self.cmb_dir,f"sims_{idx:03d}.fits")
         self.vprint(f"CMB fields from cache: {idx}")
         maps = hp.read_map(fname,(0,1,2),dtype=np.float64)
         if self.meta.checkhash(idx,hash_maps(maps)):
@@ -112,7 +112,7 @@ class CMBLensed:
     
     def plot_lensed(self,idx):
         w = lambda ell :ell * (ell + 1) / (2. * np.pi)
-        maps = self.get_lensed(idx,fid)
+        maps = self.get_lensed(idx)
         alms = hp.map2alm(maps)
         clss = hp.alm2cl(alms)
         lmax_d = len(clss[0])
