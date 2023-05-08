@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --qos=debug
 #SBATCH --constraint=haswell
-#SBATCH --nodes=5
-#SBATCH --ntasks=50
+#SBATCH --nodes=15
+#SBATCH --ntasks=150
 #SBATCH --cpus-per-task=2
 #SBATCH -J CMBLensed
 #SBATCH -o out/maps.out
@@ -16,7 +16,7 @@ source /global/homes/l/lonappan/.bashrc
 
 conda activate PC2
 
-cd /global/u2/l/lonappan/workspace/cmblens/cmblens
+cd /global/u2/l/lonappan/workspace/CMBlens/cmblens
 
 
 mpirun -np $SLURM_NTASKS python cmblens.py

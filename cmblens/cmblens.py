@@ -14,7 +14,7 @@ class CMBLensed:
     It saves seeds, Phi Map and Lensed CMB maps
     
     """
-    def __init__(self,outfolder,nsim,scalar,with_tensor,lensed,do_tensor=False,verbose=False):
+    def __init__(self,outfolder,nsim,scalar,with_tensor,lensed,do_tensor=False,verbose=False,idx_start=0):
         self.outfolder = outfolder
         self.cl_unl = camb_clfile(scalar)
         self.cl_pot = camb_clfile(with_tensor)
@@ -25,6 +25,7 @@ class CMBLensed:
         self.facres = 0
         self.verbose = verbose
         self.nsim = nsim
+        self.idx_start = idx_start
 
         
         self.cmb_dir = os.path.join(self.outfolder,f"CMB")
@@ -39,7 +40,7 @@ class CMBLensed:
         self.meta = MetaSIM(os.path.join(self.outfolder,'META.db'),verbose)
         
         if mpi.rank == 0:
-            seeds = self.meta.get_nseeds(nsim)
+            seeds = self.meta.get_nseeds(self.idx_start+nsim)[self.idx_start:]
         else:
             seeds = None
         
@@ -126,7 +127,7 @@ class CMBLensed:
         return alms
 
     def get_lensed(self,idx,fid=False):
-        name = f"sims_{idx:02d}.fits" if not fid else f"sims_fid_{idx:02d}.fits"
+        name = f"sims_{idx:03d}.fits" if not fid else f"sims_fid_{idx:03d}.fits"
         fname = os.path.join(self.cmb_dir,name)
         if os.path.isfile(fname):
             self.vprint(f"CMB fields from cache: {idx}")
@@ -186,24 +187,25 @@ class CMBLensed:
             NULL = self.get_lensed(i)
     def save_unlensed(self):
         jobs = np.arange(self.nsim)
-        for i in jobs[mpi.rank::mpi.size]:
-            print(f"Saving unlensed alms-{i} in processor-{mpi.rank}")
-            name = f"sims_unl_{idx:02d}.fits" if not fid else f"sims_unl_fid_{idx:02d}.fits"
+        for idx in jobs[mpi.rank::mpi.size]:
+            print(f"Saving unlensed alms-{idx} in processor-{mpi.rank}")
+            name = f"sims_unl_{idx:03d}.fits" if not fid else f"sims_unl_fid_{idx:03d}.fits"
             fname = os.path.join(self.cmb_dir,name)
             hp.write_alm(fname,self.get_unlensed_alm(i))
             
             
 
 if __name__ == '__main__':
-    base_dir = '/project/projectdirs/litebird/simulations/maps/websky_extragal/websky_lensed_cmb'
+    base_dir = '/global/cfs/cdirs/litebird/simulations/maps/post_ptep_inputs_20220522/websky_extragal/websky_lensed_cmb'
     camb_dir = os.path.join(base_dir,'CAMB')
     scalar_file = os.path.join(camb_dir,'BBSims_scal_dls.dat')
     total_file = os.path.join(camb_dir,'BBSims_lenspotential.dat')
     lensed_file = os.path.join(camb_dir,'BBSims_lensed_dls.dat')
+    idx_start = 50
     
-    nsim = 50
+    nsim = 150
     
-    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file)
+    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file,idx_start=idx_start)
     
-    #c.run_job()
-    c.save_unlensed()
+    c.run_job()
+    #c.save_unlensed()
