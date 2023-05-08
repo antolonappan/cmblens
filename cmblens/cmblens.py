@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import healpy as hp
 import os
 import sys
-from cmblens import mpi
-from cmblens.utils import camb_clfile,hash_maps,MetaSIM
+import mpi as mpi
+from utils import camb_clfile,hash_maps,MetaSIM
 import lenspyx
 
 
@@ -120,14 +120,14 @@ class CMBLensed:
         plt.legend(fontsize=20)
     
     def get_unlensed_alm(self,idx):
-        self.vprint(f"Synalm-ing the Unlensed CMB temp: {idx}")
+        self.vprint(f"Synalm-ing the Unlensed CMB temp: {idx+self.idx_start}")
         Cls = [self.cl_unl['tt'],self.cl_unl['ee'],self.cl_unl['tt']*0,self.cl_unl['te']]
         np.random.seed(self.seeds[idx])
         alms = hp.synalm(Cls,lmax=self.lmax + self.dlmax,new=True)
         return alms
 
     def get_lensed(self,idx,fid=False):
-        name = f"sims_{idx:03d}.fits" if not fid else f"sims_fid_{idx:03d}.fits"
+        name = f"sims_{idx+self.idx_start:03d}.fits" if not fid else f"sims_fid_{idx+self.idx_start:03d}.fits"
         fname = os.path.join(self.cmb_dir,name)
         if os.path.isfile(fname):
             self.vprint(f"CMB fields from cache: {idx}")
@@ -153,9 +153,9 @@ class CMBLensed:
             del (Red, Imd, elm)
             maps = np.array([T,Q,U])
             hp.write_map(fname,maps,dtype=np.float64)
-            self.vprint(f"CMB field cached: {idx}")
+            self.vprint(f"CMB field cached: {idx+self.idx_start}")
             mpi.barrier()
-            self.meta.insert_hash_mpi(idx,hash_maps(maps))
+            self.meta.insert_hash_mpi(idx+self.idx_start,hash_maps(maps))
             return maps
     
     def plot_lensed(self,idx,fid=False):
@@ -183,7 +183,7 @@ class CMBLensed:
     def run_job(self):
         jobs = np.arange(self.nsim)
         for i in jobs[mpi.rank::mpi.size]:
-            print(f"Lensing map-{i} in processor-{mpi.rank}")
+            print(f"Lensing map-{i+self.idx_start} in processor-{mpi.rank}")
             NULL = self.get_lensed(i)
     def save_unlensed(self):
         jobs = np.arange(self.nsim)

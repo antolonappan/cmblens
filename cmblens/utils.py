@@ -2,7 +2,7 @@ import numpy as np
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String,select
 import hashlib
 import itertools
-from cmblens import mpi
+import mpi
 import os
 
 def hash_maps(maps):

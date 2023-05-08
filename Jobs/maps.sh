@@ -5,14 +5,17 @@
 #SBATCH --ntasks=150
 #SBATCH --cpus-per-task=2
 #SBATCH -J CMBLensed
-#SBATCH -o out/maps.out
-#SBATCH -e out/maps.err
+#SBATCH -o maps.out
+#SBATCH -e maps.err
 #SBATCH --time=00:30:00
 #SBATCH --mail-type=begin,end,fail
 #SBATCH --mail-user=anto.lonappan@sissa.it
 
 
 source /global/homes/l/lonappan/.bashrc
+
+module load python
+conda activate
 
 conda activate PC2
 
