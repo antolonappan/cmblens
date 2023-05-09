@@ -64,7 +64,11 @@ class MetaSIM:
         sel = self.simulation.select().where(self.simulation.c.id==idx)
         l = conn.execute(sel).fetchall()
         conn.close()
-        return l[0]
+        try:
+            return l[0]
+        except IndexError:
+            print("suspect an MPI error")
+            return (idx,None,'0')
     
     def get_allseeds(self):
         conn = self.engine.connect()

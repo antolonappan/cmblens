@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --qos=debug
 #SBATCH --constraint=haswell
-#SBATCH --nodes=5
-#SBATCH --ntasks=50
+#SBATCH --nodes=10
+#SBATCH --ntasks=200
 #SBATCH -J CMBLensed
 #SBATCH -o maps.out
 #SBATCH -e maps.err

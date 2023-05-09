@@ -6,6 +6,7 @@ import sys
 import mpi as mpi
 from utils import camb_clfile,hash_maps,MetaSIM
 import lenspyx
+import pickle as pl
 
 
 class CMBLensed:
@@ -29,12 +30,14 @@ class CMBLensed:
 
         
         self.cmb_dir = os.path.join(self.outfolder,f"CMB")
-        self.mass_dir = os.path.join(self.outfolder,f"MASS") 
+        self.mass_dir = os.path.join(self.outfolder,f"MASS")
+        self.cl_dir = os.path.join(self.outfolder,f"CL")
         
         if mpi.rank == 0:
             os.makedirs(self.outfolder,exist_ok=True)
             os.makedirs(self.mass_dir,exist_ok=True)
             os.makedirs(self.cmb_dir,exist_ok=True)
+            os.makedirs(self.cl_dir,exist_ok=True)
         
 
         self.meta = MetaSIM(os.path.join(self.outfolder,'META.db'),verbose)
@@ -132,10 +135,11 @@ class CMBLensed:
         if os.path.isfile(fname):
             self.vprint(f"CMB fields from cache: {idx}")
             maps = hp.read_map(fname,(0,1,2),dtype=np.float64)
-            if self.meta.checkhash(idx+self.idx_start,hash_maps(maps)):
-                print("HASH CHECK: OK")
-            else:
-                print("HASH CHECK: FAILED")
+            if not mpi.size > 1:
+                if self.meta.checkhash(idx+self.idx_start,hash_maps(maps)):
+                    print("HASH CHECK: OK")
+                else:
+                    print("HASH CHECK: FAILED")
             return maps
         else:
             dlm = self.get_deflection(fid)
@@ -157,14 +161,23 @@ class CMBLensed:
             mpi.barrier()
             self.meta.insert_hash_mpi(idx+self.idx_start,hash_maps(maps))
             return maps
+    def get_lensed_cls(self,idx,fid=False):
+        fname = os.path.join(self.cl_dir,f"cls_{idx+self.idx_start:03d}.pkl")
+        if os.path.isfile(fname):
+            return pl.load(open(fname,'rb'))
+        else:
+            maps = self.get_lensed(idx,fid)
+            alms = hp.map2alm(maps)
+            clss = hp.alm2cl(alms)
+            pl.dump(clss,open(fname,'wb'))
+            return clss
+
     
     def plot_lensed(self,idx,fid=False):
         w = lambda ell :ell * (ell + 1) / (2. * np.pi)
-        maps = self.get_lensed(idx,fid)
-        alms = hp.map2alm(maps)
-        clss = hp.alm2cl(alms)
-        lmax_d = len(clss[0])
+        clss = self.get_lensed_cls(idx,fid)
         lmax_t = len(self.cl_len['tt'])
+        lmax_d = len(clss[0])
         l_d = np.arange(lmax_d)
         l_t = np.arange(lmax_t)
         plt.figure(figsize=(8,8))
@@ -180,18 +193,20 @@ class CMBLensed:
         plt.xlabel('$\ell$', fontsize=20)
         plt.ylabel('$C_\ell$', fontsize=20)
         
-    def run_job(self):
+    def make_maps(self):
         jobs = np.arange(self.nsim)
         for i in jobs[mpi.rank::mpi.size]:
             print(f"Lensing map-{i} in processor-{mpi.rank}")
             NULL = self.get_lensed(i)
-    def save_unlensed(self,fid=False):
+    
+    def make_cls(self):
         jobs = np.arange(self.nsim)
-        for idx in jobs[mpi.rank::mpi.size]:
-            print(f"Saving unlensed alms-{idx} in processor-{mpi.rank}")
-            name = f"sims_unl_{idx:03d}.fits" if not fid else f"sims_unl_fid_{idx:03d}.fits"
-            fname = os.path.join(self.cmb_dir,name)
-            hp.write_alm(fname,self.get_unlensed_alm(idx))
+        for i in jobs[mpi.rank::mpi.size]:
+            print(f"Making cls for map-{i} in processor-{mpi.rank}")
+            NULL = self.get_lensed_cls(i)
+    
+
+
             
             
 
@@ -203,9 +218,9 @@ if __name__ == '__main__':
     lensed_file = os.path.join(camb_dir,'BBSims_lensed_dls.dat')
     
     
-    nsim = 50
+    nsim = 200
     
-    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file,idx_start=150)
+    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file,)
     
-    c.run_job()
-    #c.save_unlensed()
+    #c.make_maps()
+    c.make_cls()
