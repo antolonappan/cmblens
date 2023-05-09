@@ -173,22 +173,24 @@ class CMBLensed:
             return clss
 
     
-    def plot_lensed(self,idx,fid=False):
+    def plot_lensed(self,no,fid=False):
         w = lambda ell :ell * (ell + 1) / (2. * np.pi)
-        clss = self.get_lensed_cls(idx,fid)
-        lmax_t = len(self.cl_len['tt'])
-        lmax_d = len(clss[0])
-        l_d = np.arange(lmax_d)
-        l_t = np.arange(lmax_t)
         plt.figure(figsize=(8,8))
-        plt.loglog(clss[0]*w(l_d))
-        plt.loglog(self.cl_len['tt']*w(l_t))
-        plt.loglog(clss[1]*w(l_d))
-        plt.loglog(self.cl_len['ee']*w(l_t))
-        plt.loglog(clss[2]*w(l_d))
-        plt.loglog(self.cl_len['bb']*w(l_t))
-        plt.loglog(clss[3]*w(l_d))
-        plt.loglog(self.cl_len['te']*w(l_t))
+        for i in range(no):
+            clss = self.get_lensed_cls(i,fid)
+            lmax_t = len(self.cl_len['tt'])
+            lmax_d = len(clss[0])
+            l_d = np.arange(lmax_d)
+            l_t = np.arange(lmax_t)
+            plt.loglog(clss[0]*w(l_d),c='r',alpha=.5)
+            plt.loglog(clss[1]*w(l_d),c='g',alpha=.5)
+            plt.loglog(clss[2]*w(l_d),c='b',alpha=.5)
+            plt.loglog(clss[3]*w(l_d),c='cyan',alpha=.5)
+        
+        plt.loglog(self.cl_len['tt']*w(l_t),c='k')
+        plt.loglog(self.cl_len['ee']*w(l_t),c='k')
+        plt.loglog(self.cl_len['bb']*w(l_t),c='k')
+        plt.loglog(self.cl_len['te']*w(l_t),c='k')
         plt.xlim(2,2000)
         plt.xlabel('$\ell$', fontsize=20)
         plt.ylabel('$C_\ell$', fontsize=20)
