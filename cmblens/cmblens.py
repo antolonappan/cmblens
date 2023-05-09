@@ -40,7 +40,7 @@ class CMBLensed:
         self.meta = MetaSIM(os.path.join(self.outfolder,'META.db'),verbose)
         
         if mpi.rank == 0:
-            seeds = self.meta.get_nseeds(self.idx_start+nsim)[self.idx_start:]
+            seeds = self.meta.get_nseeds(nsim+idx_start)[idx_start:]
         else:
             seeds = None
         
@@ -120,7 +120,7 @@ class CMBLensed:
         plt.legend(fontsize=20)
     
     def get_unlensed_alm(self,idx):
-        self.vprint(f"Synalm-ing the Unlensed CMB temp: {idx+self.idx_start}")
+        self.vprint(f"Synalm-ing the Unlensed CMB temp: {idx}")
         Cls = [self.cl_unl['tt'],self.cl_unl['ee'],self.cl_unl['tt']*0,self.cl_unl['te']]
         np.random.seed(self.seeds[idx])
         alms = hp.synalm(Cls,lmax=self.lmax + self.dlmax,new=True)
@@ -132,7 +132,7 @@ class CMBLensed:
         if os.path.isfile(fname):
             self.vprint(f"CMB fields from cache: {idx}")
             maps = hp.read_map(fname,(0,1,2),dtype=np.float64)
-            if self.meta.checkhash(idx,hash_maps(maps)):
+            if self.meta.checkhash(idx+self.idx_start,hash_maps(maps)):
                 print("HASH CHECK: OK")
             else:
                 print("HASH CHECK: FAILED")
@@ -153,7 +153,7 @@ class CMBLensed:
             del (Red, Imd, elm)
             maps = np.array([T,Q,U])
             hp.write_map(fname,maps,dtype=np.float64)
-            self.vprint(f"CMB field cached: {idx+self.idx_start}")
+            self.vprint(f"CMB field cached: {idx}")
             mpi.barrier()
             self.meta.insert_hash_mpi(idx+self.idx_start,hash_maps(maps))
             return maps
@@ -183,15 +183,15 @@ class CMBLensed:
     def run_job(self):
         jobs = np.arange(self.nsim)
         for i in jobs[mpi.rank::mpi.size]:
-            print(f"Lensing map-{i+self.idx_start} in processor-{mpi.rank}")
+            print(f"Lensing map-{i} in processor-{mpi.rank}")
             NULL = self.get_lensed(i)
-    def save_unlensed(self):
+    def save_unlensed(self,fid=False):
         jobs = np.arange(self.nsim)
         for idx in jobs[mpi.rank::mpi.size]:
             print(f"Saving unlensed alms-{idx} in processor-{mpi.rank}")
             name = f"sims_unl_{idx:03d}.fits" if not fid else f"sims_unl_fid_{idx:03d}.fits"
             fname = os.path.join(self.cmb_dir,name)
-            hp.write_alm(fname,self.get_unlensed_alm(i))
+            hp.write_alm(fname,self.get_unlensed_alm(idx))
             
             
 
@@ -201,11 +201,11 @@ if __name__ == '__main__':
     scalar_file = os.path.join(camb_dir,'BBSims_scal_dls.dat')
     total_file = os.path.join(camb_dir,'BBSims_lenspotential.dat')
     lensed_file = os.path.join(camb_dir,'BBSims_lensed_dls.dat')
-    idx_start = 50
     
-    nsim = 150
     
-    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file,idx_start=idx_start)
+    nsim = 50
+    
+    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file,idx_start=150)
     
     c.run_job()
     #c.save_unlensed()

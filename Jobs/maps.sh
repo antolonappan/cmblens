@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH --qos=debug
 #SBATCH --constraint=haswell
-#SBATCH --nodes=15
-#SBATCH --ntasks=150
-#SBATCH --cpus-per-task=2
+#SBATCH --nodes=5
+#SBATCH --ntasks=50
 #SBATCH -J CMBLensed
 #SBATCH -o maps.out
 #SBATCH -e maps.err
@@ -15,6 +14,7 @@
 source /global/homes/l/lonappan/.bashrc
 
 module load python
+
 conda activate
 
 conda activate PC2
