@@ -1,6 +1,6 @@
 numpy
 healpy
 matplotlib
-lenspyx
+lenspyx==1.0.0
 sqlalchemy
 mpi4py
