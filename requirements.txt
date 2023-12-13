@@ -4,3 +4,5 @@ matplotlib
 lenspyx==1.0.0
 sqlalchemy
 mpi4py
+pre-commit
+ruff

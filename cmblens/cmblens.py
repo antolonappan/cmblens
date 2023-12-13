@@ -2,9 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import healpy as hp
 import os
-import sys
-import mpi as mpi
-from utils import camb_clfile,hash_maps,MetaSIM
+from . import mpi
+from .utils import camb_clfile, hash_maps, MetaSIM
 import lenspyx
 import pickle as pl
 
@@ -13,9 +12,20 @@ class CMBLensed:
     """
     Lensing class:
     It saves seeds, Phi Map and Lensed CMB maps
-    
+
     """
-    def __init__(self,outfolder,nsim,scalar,with_tensor,lensed,do_tensor=False,verbose=False,idx_start=0):
+
+    def __init__(
+        self,
+        outfolder,
+        nsim,
+        scalar,
+        with_tensor,
+        lensed,
+        do_tensor=False,
+        verbose=False,
+        idx_start=0,
+    ):
         self.outfolder = outfolder
         self.cl_unl = camb_clfile(scalar)
         self.cl_pot = camb_clfile(with_tensor)
@@ -28,201 +38,215 @@ class CMBLensed:
         self.nsim = nsim
         self.idx_start = idx_start
 
-        
-        self.cmb_dir = os.path.join(self.outfolder,f"CMB")
-        self.mass_dir = os.path.join(self.outfolder,f"MASS")
-        self.cl_dir = os.path.join(self.outfolder,f"CL")
-        
-        if mpi.rank == 0:
-            os.makedirs(self.outfolder,exist_ok=True)
-            os.makedirs(self.mass_dir,exist_ok=True)
-            os.makedirs(self.cmb_dir,exist_ok=True)
-            os.makedirs(self.cl_dir,exist_ok=True)
-        
+        self.cmb_dir = os.path.join(self.outfolder, "CMB")
+        self.mass_dir = os.path.join(self.outfolder, "MASS")
+        self.cl_dir = os.path.join(self.outfolder, "CL")
 
-        self.meta = MetaSIM(os.path.join(self.outfolder,'META.db'),verbose)
-        
         if mpi.rank == 0:
-            seeds = self.meta.get_nseeds(nsim+idx_start)[idx_start:]
+            os.makedirs(self.outfolder, exist_ok=True)
+            os.makedirs(self.mass_dir, exist_ok=True)
+            os.makedirs(self.cmb_dir, exist_ok=True)
+            os.makedirs(self.cl_dir, exist_ok=True)
+
+        self.meta = MetaSIM(os.path.join(self.outfolder, "META.db"), verbose)
+
+        if mpi.rank == 0:
+            seeds = self.meta.get_nseeds(nsim + idx_start)[idx_start:]
         else:
             seeds = None
-        
+
         if mpi.nompi:
             self.seeds = seeds
         else:
-            self.seeds = mpi.com.bcast(seeds,root=0)
+            self.seeds = mpi.com.bcast(seeds, root=0)
         mpi.barrier()
 
-    
-    def vprint(self,string):
+    def vprint(self, string):
         if self.verbose:
             print(string)
 
     @property
     def get_kmap(self):
-        fname = os.path.join(self.mass_dir,'kappa.fits')
+        fname = os.path.join(self.mass_dir, "kappa.fits")
         if os.path.isfile(fname):
             return hp.read_map(fname)
         else:
-            self.vprint('Downloading kappa map')
+            self.vprint("Downloading kappa map")
             import requests
-            kappa_url = 'https://mocks.cita.utoronto.ca/data/websky/v0.0/kap.fits'
+
+            kappa_url = "https://mocks.cita.utoronto.ca/data/websky/v0.0/kap.fits"
             r = requests.get(kappa_url)
 
-            with open(fname,'wb') as f:
+            with open(fname, "wb") as f:
                 f.write(r.content)
             return hp.read_map(fname)
 
-    
     @property
     def get_kappa(self):
-        return hp.map2alm(self.get_kmap,lmax=2048)
-    
-    
-    def get_phi(self,fid=False):
-        """
+        return hp.map2alm(self.get_kmap, lmax=2048)
 
-        """
-        name = 'phi_fid.fits' if fid else 'phi.fits'
-        fname = os.path.join(self.mass_dir,name)
+    def get_phi(self, fid=False):
+        """ """
+        name = "phi_fid.fits" if fid else "phi.fits"
+        fname = os.path.join(self.mass_dir, name)
         if os.path.isfile(fname):
             return hp.read_alm(fname)
         else:
             fac = np.arange(self.lmax + 1, dtype=float) * np.arange(1, self.lmax + 2)
             if fid:
-                phi = hp.synalm(self.cl_pot['pp'], lmax=self.lmax + self.dlmax, new=True)
+                phi = hp.synalm(
+                    self.cl_pot["pp"], lmax=self.lmax + self.dlmax, new=True
+                )
             else:
-                phi = hp.almxfl(self.get_kappa,2/fac)
-            hp.write_alm(fname,phi)
+                phi = hp.almxfl(self.get_kappa, 2 / fac)
+            hp.write_alm(fname, phi)
             return phi
-           
-    def get_deflection(self,fid=False):
+
+    def get_deflection(self, fid=False):
         """
         generate deflection field
         sqrt(L(L+1)) * \phi_{LM}
         """
-        der = np.sqrt(np.arange(self.lmax + 1, dtype=float) * np.arange(1, self.lmax + 2))
+        der = np.sqrt(
+            np.arange(self.lmax + 1, dtype=float) * np.arange(1, self.lmax + 2)
+        )
         defl = hp.almxfl(self.get_phi(fid), der)
         defl[0] = 0
         return defl
-        
-    
-    def plot_pp(self,fid=False):
+
+    def plot_pp(self, fid=False):
         data = hp.alm2cl(self.get_phi(fid))
-        theory = self.cl_pot['pp']
-        lmax = min(len(data),len(theory))
+        theory = self.cl_pot["pp"]
+        lmax = min(len(data), len(theory))
         l = np.arange(lmax)
-        w = lambda ell : ell ** 2 * (ell + 1.) ** 2 * 0.5 / np.pi * 1e7
-        
-        plt.figure(figsize=(8,8))
-        plt.loglog(data[:lmax]*w(l),label='WebSky')
-        plt.loglog(theory[:lmax]*w(l),label='Fiducial')
-        plt.xlabel('$L$',fontsize=20)
-        plt.ylabel('$L^2 (L + 1)^2 C_L^{\phi\phi}$  [$x10^7$]',fontsize=20)
-        plt.xlim(2,None)
+        w = lambda ell: ell**2 * (ell + 1.0) ** 2 * 0.5 / np.pi * 1e7
+
+        plt.figure(figsize=(8, 8))
+        plt.loglog(data[:lmax] * w(l), label="WebSky")
+        plt.loglog(theory[:lmax] * w(l), label="Fiducial")
+        plt.xlabel("$L$", fontsize=20)
+        plt.ylabel("$L^2 (L + 1)^2 C_L^{\phi\phi}$  [$x10^7$]", fontsize=20)
+        plt.xlim(2, None)
         plt.legend(fontsize=20)
-    
-    def get_unlensed_alm(self,idx):
+
+    def get_unlensed_alm(self, idx):
         self.vprint(f"Synalm-ing the Unlensed CMB temp: {idx}")
-        Cls = [self.cl_unl['tt'],self.cl_unl['ee'],self.cl_unl['tt']*0,self.cl_unl['te']]
+        Cls = [
+            self.cl_unl["tt"],
+            self.cl_unl["ee"],
+            self.cl_unl["tt"] * 0,
+            self.cl_unl["te"],
+        ]
         np.random.seed(self.seeds[idx])
-        alms = hp.synalm(Cls,lmax=self.lmax + self.dlmax,new=True)
+        alms = hp.synalm(Cls, lmax=self.lmax + self.dlmax, new=True)
         return alms
 
-    def get_lensed(self,idx,fid=False):
-        name = f"sims_{idx+self.idx_start:03d}.fits" if not fid else f"sims_fid_{idx+self.idx_start:03d}.fits"
-        fname = os.path.join(self.cmb_dir,name)
+    def get_lensed(self, idx, fid=False):
+        name = (
+            f"sims_{idx+self.idx_start:03d}.fits"
+            if not fid
+            else f"sims_fid_{idx+self.idx_start:03d}.fits"
+        )
+        fname = os.path.join(self.cmb_dir, name)
         if os.path.isfile(fname):
             self.vprint(f"CMB fields from cache: {idx}")
-            maps = hp.read_map(fname,(0,1,2),dtype=np.float64)
+            maps = hp.read_map(fname, (0, 1, 2), dtype=np.float64)
             if not mpi.size > 1:
-                if self.meta.checkhash(idx+self.idx_start,hash_maps(maps)):
+                if self.meta.checkhash(idx + self.idx_start, hash_maps(maps)):
                     print("HASH CHECK: OK")
                 else:
                     print("HASH CHECK: FAILED")
             return maps
         else:
             dlm = self.get_deflection(fid)
-            Red, Imd = hp.alm2map_spin([dlm, np.zeros_like(dlm)], self.nside, 1, hp.Alm.getlmax(dlm.size))
+            Red, Imd = hp.alm2map_spin(
+                [dlm, np.zeros_like(dlm)], self.nside, 1, hp.Alm.getlmax(dlm.size)
+            )
             del dlm
-            tlm,elm,blm = self.get_unlensed_alm(idx)
+            tlm, elm, blm = self.get_unlensed_alm(idx)
             del blm
-            T  = lenspyx.alm2lenmap(tlm, [Red, Imd], self.nside, 
-                                    facres=self.facres, 
-                                    verbose=False)
+            T = lenspyx.alm2lenmap(
+                tlm, [Red, Imd], self.nside, facres=self.facres, verbose=False
+            )
             del tlm
-            Q, U  = lenspyx.alm2lenmap_spin([elm, None],[Red, Imd], 
-                                            self.nside, 2, facres=self.facres,
-                                            verbose=False)
+            Q, U = lenspyx.alm2lenmap_spin(
+                [elm, None],
+                [Red, Imd],
+                self.nside,
+                2,
+                facres=self.facres,
+                verbose=False,
+            )
             del (Red, Imd, elm)
-            maps = np.array([T,Q,U])
-            hp.write_map(fname,maps,dtype=np.float64)
+            maps = np.array([T, Q, U])
+            hp.write_map(fname, maps, dtype=np.float64)
             self.vprint(f"CMB field cached: {idx}")
             mpi.barrier()
-            self.meta.insert_hash_mpi(idx+self.idx_start,hash_maps(maps))
+            self.meta.insert_hash_mpi(idx + self.idx_start, hash_maps(maps))
             return maps
-    def get_lensed_cls(self,idx,fid=False):
-        fname = os.path.join(self.cl_dir,f"cls_{idx+self.idx_start:03d}.pkl")
+
+    def get_lensed_cls(self, idx, fid=False):
+        fname = os.path.join(self.cl_dir, f"cls_{idx+self.idx_start:03d}.pkl")
         if os.path.isfile(fname):
-            return pl.load(open(fname,'rb'))
+            return pl.load(open(fname, "rb"))
         else:
-            maps = self.get_lensed(idx,fid)
+            maps = self.get_lensed(idx, fid)
             alms = hp.map2alm(maps)
             clss = hp.alm2cl(alms)
-            pl.dump(clss,open(fname,'wb'))
+            pl.dump(clss, open(fname, "wb"))
             return clss
 
-    
-    def plot_lensed(self,no,fid=False):
-        w = lambda ell :ell * (ell + 1) / (2. * np.pi)
-        plt.figure(figsize=(8,8))
+    def plot_lensed(self, no, fid=False):
+        w = lambda ell: ell * (ell + 1) / (2.0 * np.pi)
+        plt.figure(figsize=(8, 8))
         for i in range(no):
-            clss = self.get_lensed_cls(i,fid)
-            lmax_t = len(self.cl_len['tt'])
+            clss = self.get_lensed_cls(i, fid)
+            lmax_t = len(self.cl_len["tt"])
             lmax_d = len(clss[0])
             l_d = np.arange(lmax_d)
             l_t = np.arange(lmax_t)
-            plt.loglog(clss[0]*w(l_d),c='r',alpha=.5)
-            plt.loglog(clss[1]*w(l_d),c='g',alpha=.5)
-            plt.loglog(clss[2]*w(l_d),c='b',alpha=.5)
-            plt.loglog(clss[3]*w(l_d),c='cyan',alpha=.5)
-        
-        plt.loglog(self.cl_len['tt']*w(l_t),c='k')
-        plt.loglog(self.cl_len['ee']*w(l_t),c='k')
-        plt.loglog(self.cl_len['bb']*w(l_t),c='k')
-        plt.loglog(self.cl_len['te']*w(l_t),c='k')
-        plt.xlim(2,2000)
-        plt.xlabel('$\ell$', fontsize=20)
-        plt.ylabel('$C_\ell$', fontsize=20)
-        
+            plt.loglog(clss[0] * w(l_d), c="r", alpha=0.5)
+            plt.loglog(clss[1] * w(l_d), c="g", alpha=0.5)
+            plt.loglog(clss[2] * w(l_d), c="b", alpha=0.5)
+            plt.loglog(clss[3] * w(l_d), c="cyan", alpha=0.5)
+
+        plt.loglog(self.cl_len["tt"] * w(l_t), c="k")
+        plt.loglog(self.cl_len["ee"] * w(l_t), c="k")
+        plt.loglog(self.cl_len["bb"] * w(l_t), c="k")
+        plt.loglog(self.cl_len["te"] * w(l_t), c="k")
+        plt.xlim(2, 2000)
+        plt.xlabel("$\ell$", fontsize=20)
+        plt.ylabel("$C_\ell$", fontsize=20)
+
     def make_maps(self):
         jobs = np.arange(self.nsim)
-        for i in jobs[mpi.rank::mpi.size]:
+        for i in jobs[mpi.rank :: mpi.size]:
             print(f"Lensing map-{i} in processor-{mpi.rank}")
-            NULL = self.get_lensed(i)
-    
+            _ = self.get_lensed(i)
+
     def make_cls(self):
         jobs = np.arange(self.nsim)
-        for i in jobs[mpi.rank::mpi.size]:
+        for i in jobs[mpi.rank :: mpi.size]:
             print(f"Making cls for map-{i} in processor-{mpi.rank}")
-            NULL = self.get_lensed_cls(i)
-    
+            _ = self.get_lensed_cls(i)
 
 
-            
-            
+if __name__ == "__main__":
+    base_dir = "/global/cfs/cdirs/litebird/simulations/maps/post_ptep_inputs_20220522/websky_extragal/websky_lensed_cmb"
+    camb_dir = os.path.join(base_dir, "CAMB")
+    scalar_file = os.path.join(camb_dir, "BBSims_scal_dls.dat")
+    total_file = os.path.join(camb_dir, "BBSims_lenspotential.dat")
+    lensed_file = os.path.join(camb_dir, "BBSims_lensed_dls.dat")
 
-if __name__ == '__main__':
-    base_dir = '/global/cfs/cdirs/litebird/simulations/maps/post_ptep_inputs_20220522/websky_extragal/websky_lensed_cmb'
-    camb_dir = os.path.join(base_dir,'CAMB')
-    scalar_file = os.path.join(camb_dir,'BBSims_scal_dls.dat')
-    total_file = os.path.join(camb_dir,'BBSims_lenspotential.dat')
-    lensed_file = os.path.join(camb_dir,'BBSims_lensed_dls.dat')
-    
-    
     nsim = 200
-    
-    c = CMBLensed(base_dir,nsim,scalar_file,total_file,lensed_file,)
-    
-    #c.make_maps()
+
+    c = CMBLensed(
+        base_dir,
+        nsim,
+        scalar_file,
+        total_file,
+        lensed_file,
+    )
+
+    # c.make_maps()
     c.make_cls()
