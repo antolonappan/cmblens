@@ -5,7 +5,7 @@ setup(
     name="cmblens",
     packages=["cmblens"],
     package_data={"cmblens": files},
-    version="1.1",
+    version="1.2",
     description="Lensing CMB with websky kappa",
     author="Anto Idicherian Lonappan",
     author_email="mail@antolonappan.me",

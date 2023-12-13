@@ -6,3 +6,4 @@ sqlalchemy
 mpi4py
 pre-commit
 ruff
+requests

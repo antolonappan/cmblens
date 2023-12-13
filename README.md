@@ -4,6 +4,8 @@
 
 `pip install .`
 
+**NOTE:** When installing on NERSC, build `mpi4py` as mentioned [here](https://docs.nersc.gov/development/languages/python/parallel-python/#mpi4py-in-your-custom-conda-environment) before installing the package.
+
 After cloning for the first time, run `pre-commit install`.
 
 ### Usage
